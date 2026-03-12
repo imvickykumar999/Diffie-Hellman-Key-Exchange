@@ -1,350 +1,506 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diffie-Hellman Key Exchange Visualizer</title>
+    <title>The Cryptographic Handshake: Diffie-Hellman</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Warm Neutrals with Subdued Primary Accents (Slate for layout, Amber/Rose/Sky/Emerald for analogy, Indigo for interactions) -->
+    <!-- Application Structure Plan: The SPA is structured linearly to build understanding progressively. It starts with the conceptual problem (Intro), moves to a tangible mental model (Paint Analogy), translates that into the actual algorithm (The Math & Chart), and concludes with practical implications (Real-World). This narrative flow guides the user from abstraction to concrete mathematics, maximizing comprehension. -->
+    <!-- Visualization & Content Choices: 1. Paint Analogy -> CSS/HTML animations (Goal: Inform/Compare) -> Easiest way to visualize the core concept without math. 2. Math Simulator -> Interactive HTML form (Goal: Inform/Change) -> Allows users to play with variables and see the shared secret emerge. 3. Discrete Log Chart -> Chart.js Scatter Plot (Goal: Inform/Relationships) -> Visually demonstrates the unpredictability of modular exponentiation, proving why the algorithm is secure. NO SVG/Mermaid used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f8fafc;
+            color: #0f172a;
         }
-
-        .math-font {
-            font-family: "Times New Roman", Times, serif;
-            font-style: italic;
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
         }
-
-        .step-card {
-            transition: all 0.3s ease;
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 400px;
         }
-
-        .arrow-path {
-            stroke-dasharray: 10;
-            animation: dash 20s linear infinite;
-        }
-
-        @keyframes dash {
-            to {
-                stroke-dashoffset: -1000;
+        
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 50vh;
+                max-height: 500px;
             }
         }
 
-        .highlight-pulse {
-            animation: pulse-bg 2s infinite;
+        .paint-blob {
+            transition: background-color 1s ease-in-out, transform 0.5s ease;
+        }
+        
+        .step-active {
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3);
+            transform: scale(1.05);
         }
 
-        @keyframes pulse-bg {
-            0%, 100% { background-color: rgba(59, 130, 246, 0.1); }
-            50% { background-color: rgba(59, 130, 246, 0.2); }
+        .hide-scroll::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="antialiased selection:bg-indigo-100 selection:text-indigo-900">
 
-    <div class="max-w-6xl mx-auto">
-        <!-- Header -->
-        <div class="text-center mb-10">
-            <h1 class="text-4xl font-bold text-slate-800 mb-2">Diffie-Hellman Key Exchange</h1>
-            <p class="text-slate-600">Interactive visualization of secure key agreement over an insecure channel.</p>
-        </div>
-
-        <!-- Global Parameters -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
-            <div class="flex flex-wrap items-center justify-center gap-8">
-                <div class="text-center">
-                    <span class="block text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Public Modulus (p)</span>
-                    <div class="text-3xl font-bold text-blue-600 math-font">23</div>
-                </div>
-                <div class="text-center">
-                    <span class="block text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Base/Generator (g)</span>
-                    <div class="text-3xl font-bold text-blue-600 math-font">5</div>
-                </div>
-                <div class="text-center hidden md:block border-l border-slate-200 h-12"></div>
-                <div class="text-center max-w-md">
-                    <p class="text-sm text-slate-500 italic">These numbers are known by everyone, including Eve (the eavesdropper).</p>
-                </div>
+    <nav class="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center overflow-x-auto hide-scroll">
+            <div class="font-bold text-xl tracking-tight text-slate-800 whitespace-nowrap mr-8">DH Key Exchange</div>
+            <div class="flex space-x-6 text-sm font-medium text-slate-600">
+                <a href="#intro" class="hover:text-indigo-600 transition whitespace-nowrap">The Problem</a>
+                <a href="#analogy" class="hover:text-indigo-600 transition whitespace-nowrap">Paint Analogy</a>
+                <a href="#math" class="hover:text-indigo-600 transition whitespace-nowrap">The Math</a>
+                <a href="#realworld" class="hover:text-indigo-600 transition whitespace-nowrap">Real World</a>
             </div>
         </div>
+    </nav>
 
-        <!-- Main Exchange Area -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start relative">
-            
-            <!-- Alice's Side -->
-            <div class="bg-white rounded-2xl shadow-md border-t-4 border-rose-500 p-6 step-card">
-                <div class="flex items-center gap-3 mb-6">
-                    <div class="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    </div>
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-800">Alice</h2>
-                        <span class="text-xs font-medium text-rose-500 uppercase">Private & Secure</span>
-                    </div>
-                </div>
-
-                <div class="space-y-6">
-                    <!-- Alice Private Key -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Secret Key (a): <span id="alice-priv-val" class="font-bold text-rose-600">6</span></label>
-                        <input type="range" id="alice-priv-input" min="1" max="20" value="6" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-500">
-                    </div>
-
-                    <!-- Alice Public Key Calc -->
-                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">Calculates Public Key (A)</p>
-                        <div class="text-lg math-font text-slate-700">
-                            A = g<sup>a</sup> mod p<br>
-                            A = 5<sup><span id="alice-a-exp" class="text-rose-600 font-bold">6</span></sup> mod 23 = <span id="alice-pub-result" class="text-2xl font-bold text-slate-900">8</span>
-                        </div>
-                    </div>
-
-                    <!-- Alice Receives Bob's B -->
-                    <div id="alice-receive-box" class="p-4 bg-blue-50 rounded-xl border border-blue-100 hidden">
-                        <p class="text-xs font-semibold text-blue-400 uppercase mb-2">Received from Bob (B)</p>
-                        <div class="text-2xl font-bold text-blue-700 math-font" id="alice-received-val">19</div>
-                    </div>
-
-                    <!-- Alice Shared Secret -->
-                    <div id="alice-final-box" class="p-4 bg-green-50 rounded-xl border-2 border-green-200 hidden highlight-pulse">
-                        <p class="text-xs font-semibold text-green-600 uppercase mb-2">Calculated Shared Secret (s)</p>
-                        <div class="text-lg math-font text-slate-700">
-                            s = B<sup>a</sup> mod p<br>
-                            s = <span id="alice-calc-base" class="text-blue-600 font-bold">19</span><sup><span id="alice-calc-exp" class="text-rose-600 font-bold">6</span></sup> mod 23 = <span id="shared-secret-alice" class="text-3xl font-extrabold text-green-700">2</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- The Network (Center) -->
-            <div class="flex flex-col items-center justify-center space-y-8 py-10 lg:py-20">
-                <!-- Eve -->
-                <div class="relative bg-slate-800 text-white p-6 rounded-2xl shadow-xl w-full max-w-xs text-center z-10 border-4 border-slate-700">
-                    <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    </div>
-                    <h3 class="text-lg font-bold mb-2">Eve (Eavesdropper)</h3>
-                    <p class="text-xs text-slate-400 mb-4 uppercase tracking-tighter font-semibold">Intercepted Data</p>
-                    
-                    <div class="grid grid-cols-2 gap-2 text-sm font-mono">
-                        <div class="bg-slate-900 p-2 rounded">A: <span id="eve-a" class="text-rose-400">8</span></div>
-                        <div class="bg-slate-900 p-2 rounded">B: <span id="eve-b" class="text-sky-400">19</span></div>
-                    </div>
-                    <div class="mt-4 p-2 bg-rose-500/10 border border-rose-500/20 rounded text-rose-300 text-xs italic">
-                        Eve knows A and B, but cannot find the secret without solving the Discrete Log Problem!
-                    </div>
-                </div>
-
-                <!-- Visual Arrows for exchange -->
-                <div class="w-full flex justify-between px-4 relative h-12">
-                     <svg class="absolute top-0 left-0 w-full h-full overflow-visible pointer-events-none" viewBox="0 0 400 100">
-                        <!-- Alice to Bob -->
-                        <path id="arrow-a-to-b" d="M 50,20 L 350,20" stroke="#f43f5e" stroke-width="3" fill="none" marker-end="url(#arrowhead-red)" class="arrow-path" />
-                        <!-- Bob to Alice -->
-                        <path id="arrow-b-to-a" d="M 350,80 L 50,80" stroke="#0ea5e9" stroke-width="3" fill="none" marker-end="url(#arrowhead-blue)" class="arrow-path" />
-                        
-                        <defs>
-                            <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="#f43f5e" />
-                            </marker>
-                            <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-                                <polygon points="10 0, 0 3.5, 10 7" fill="#0ea5e9" />
-                            </marker>
-                        </defs>
-                     </svg>
-                </div>
-                
-                <button id="exchange-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition transform hover:scale-105 active:scale-95">
-                    Execute Key Exchange
-                </button>
-            </div>
-
-            <!-- Bob's Side -->
-            <div class="bg-white rounded-2xl shadow-md border-t-4 border-sky-500 p-6 step-card">
-                <div class="flex items-center gap-3 mb-6">
-                    <div class="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center text-sky-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    </div>
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-800">Bob</h2>
-                        <span class="text-xs font-medium text-sky-500 uppercase">Private & Secure</span>
-                    </div>
-                </div>
-
-                <div class="space-y-6">
-                    <!-- Bob Private Key -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Secret Key (b): <span id="bob-priv-val" class="font-bold text-sky-600">15</span></label>
-                        <input type="range" id="bob-priv-input" min="1" max="20" value="15" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-sky-500">
-                    </div>
-
-                    <!-- Bob Public Key Calc -->
-                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">Calculates Public Key (B)</p>
-                        <div class="text-lg math-font text-slate-700">
-                            B = g<sup>b</sup> mod p<br>
-                            B = 5<sup><span id="bob-b-exp" class="text-sky-600 font-bold">15</span></sup> mod 23 = <span id="bob-pub-result" class="text-2xl font-bold text-slate-900">19</span>
-                        </div>
-                    </div>
-
-                    <!-- Bob Receives Alice's A -->
-                    <div id="bob-receive-box" class="p-4 bg-rose-50 rounded-xl border border-rose-100 hidden">
-                        <p class="text-xs font-semibold text-rose-400 uppercase mb-2">Received from Alice (A)</p>
-                        <div class="text-2xl font-bold text-rose-700 math-font" id="bob-received-val">8</div>
-                    </div>
-
-                    <!-- Bob Shared Secret -->
-                    <div id="bob-final-box" class="p-4 bg-green-50 rounded-xl border-2 border-green-200 hidden highlight-pulse">
-                        <p class="text-xs font-semibold text-green-600 uppercase mb-2">Calculated Shared Secret (s)</p>
-                        <div class="text-lg math-font text-slate-700">
-                            s = A<sup>b</sup> mod p<br>
-                            s = <span id="bob-calc-base" class="text-rose-600 font-bold">8</span><sup><span id="bob-calc-exp" class="text-sky-600 font-bold">15</span></sup> mod 23 = <span id="shared-secret-bob" class="text-3xl font-extrabold text-green-700">2</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Footer / Explanation -->
-        <div class="mt-12 p-8 bg-slate-800 text-slate-300 rounded-2xl">
-            <h3 class="text-xl font-bold text-white mb-4">How it works mathematically:</h3>
-            <p class="mb-4">
-                Both Alice and Bob end up with the same shared secret <span class="text-green-400 font-bold">s</span> because of the laws of exponents in modular arithmetic:
+    <main class="pt-24 pb-20">
+        <section id="intro" class="max-w-4xl mx-auto px-6 py-12 md:py-20 text-center">
+            <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6">
+                Sharing Secrets in <span class="text-indigo-600">Plain Sight</span>
+            </h1>
+            <p class="text-lg md:text-xl text-slate-600 mb-10 leading-relaxed max-w-3xl mx-auto">
+                Imagine you are in a crowded room, and you want to agree on a secret number with a friend across the hall. The catch? You can only communicate by shouting. Everyone in the room—including potential eavesdroppers—will hear every word you say. How do you end up with a secret that only you two know?
             </p>
-            <div class="bg-slate-900 p-6 rounded-xl text-center mb-6">
-                <p class="text-2xl math-font text-white">
-                    (g<sup>a</sup>)<sup>b</sup> mod p = g<sup>ab</sup> mod p = (g<sup>b</sup>)<sup>a</sup> mod p
+            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 md:p-8 text-left shadow-sm">
+                <p class="text-slate-700 leading-relaxed">
+                    This is the fundamental problem that the <strong>Diffie-Hellman (DH) Key Exchange</strong> solved in 1976. It laid the groundwork for modern public-key cryptography and remains one of the most important algorithms in computer science today. It proves that privacy doesn't require a pre-shared secret.
                 </p>
             </div>
-            <p class="text-sm">
-                In this example, $p=23$ and $g=5$. If Alice chooses $a=6$ and Bob chooses $b=15$, they compute $A=8$ and $B=19$. 
-                When they exchange these, Alice calculates $19^6 \pmod{23}$ and Bob calculates $8^{15} \pmod{23}$. Both equal $2$.
-            </p>
+        </section>
+
+        <section id="analogy" class="max-w-6xl mx-auto px-6 py-16">
+            <div class="mb-12 text-center max-w-3xl mx-auto">
+                <h2 class="text-3xl font-bold mb-4">The Analogy: The Paint Mix</h2>
+                <p class="text-slate-600 text-lg">
+                    This section translates the complex cryptography into a simple visual metaphor using colors. By interacting with the simulation below, you will see how Alice and Bob can arrive at a shared secret color without ever transmitting their private colors across the "room".
+                </p>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-lg border border-slate-200 p-8 overflow-hidden">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-12 gap-8">
+                    <div class="text-center w-full md:w-1/3">
+                        <h3 class="text-xl font-bold mb-2">Alice</h3>
+                        <div class="text-sm text-slate-500 mb-4 h-6" id="alice-status">Waiting to start...</div>
+                        <div class="w-32 h-32 rounded-full border-4 border-slate-100 mx-auto paint-blob bg-slate-100 flex items-center justify-center text-slate-400 font-medium" id="alice-paint">Empty</div>
+                    </div>
+
+                    <div class="text-center w-full md:w-1/3">
+                        <h3 class="text-xl font-bold mb-2 text-slate-400">Public Space</h3>
+                        <div class="text-sm text-slate-500 mb-4 h-6" id="public-status">Eavesdropper can see this</div>
+                        <div class="w-32 h-32 rounded-full border-4 border-slate-100 mx-auto paint-blob bg-slate-100 flex items-center justify-center text-slate-400 font-medium" id="public-paint">Empty</div>
+                    </div>
+
+                    <div class="text-center w-full md:w-1/3">
+                        <h3 class="text-xl font-bold mb-2">Bob</h3>
+                        <div class="text-sm text-slate-500 mb-4 h-6" id="bob-status">Waiting to start...</div>
+                        <div class="w-32 h-32 rounded-full border-4 border-slate-100 mx-auto paint-blob bg-slate-100 flex items-center justify-center text-slate-400 font-medium" id="bob-paint">Empty</div>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <button id="btn-paint-sim" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-full transition shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        Start Paint Simulation
+                    </button>
+                    <p class="mt-4 text-sm text-slate-500 font-medium" id="sim-step-text">Click to see how the secret is formed.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="math" class="bg-slate-900 text-white py-20 mt-12">
+            <div class="max-w-6xl mx-auto px-6">
+                <div class="mb-12 text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-4">The Math: Modular Arithmetic</h2>
+                    <p class="text-slate-400 text-lg">
+                        In computer science, we don't use paint; we use large prime numbers and "clock math". This section breaks down the actual algorithm. Use the interactive calculator to act as Alice and Bob, and view the chart to understand the "Discrete Logarithm Problem" that makes this secure.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                    
+                    <div class="bg-slate-800 rounded-3xl p-8 border border-slate-700 shadow-2xl">
+                        <h3 class="text-xl font-bold text-indigo-400 mb-6 border-b border-slate-700 pb-4">1. Protocol Simulator</h3>
+                        
+                        <div class="mb-6 bg-slate-900 p-4 rounded-xl">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm text-slate-400">Public Prime (p)</span>
+                                <span class="font-mono text-lg font-bold">23</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-slate-400">Public Base (g)</span>
+                                <span class="font-mono text-lg font-bold">5</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div class="border border-slate-600 rounded-xl p-4 relative overflow-hidden">
+                                <div class="absolute top-0 left-0 w-1 h-full bg-rose-500"></div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Alice's Secret (a): <span id="val-a" class="text-rose-400 font-mono font-bold text-lg">6</span></label>
+                                <input type="range" id="input-a" min="1" max="22" value="6" class="w-full accent-rose-500 mb-3">
+                                <div class="bg-slate-900 p-3 rounded-lg">
+                                    <div class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Alice computes Public Key (A)</div>
+                                    <div class="font-mono text-sm">A = 5<sup class="text-rose-400" id="sup-a">6</sup> mod 23 = <span id="res-A" class="text-white font-bold text-xl">8</span></div>
+                                </div>
+                            </div>
+
+                            <div class="border border-slate-600 rounded-xl p-4 relative overflow-hidden">
+                                <div class="absolute top-0 left-0 w-1 h-full bg-sky-500"></div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Bob's Secret (b): <span id="val-b" class="text-sky-400 font-mono font-bold text-lg">15</span></label>
+                                <input type="range" id="input-b" min="1" max="22" value="15" class="w-full accent-sky-500 mb-3">
+                                <div class="bg-slate-900 p-3 rounded-lg">
+                                    <div class="text-xs text-slate-500 mb-1 uppercase tracking-wider">Bob computes Public Key (B)</div>
+                                    <div class="font-mono text-sm">B = 5<sup class="text-sky-400" id="sup-b">15</sup> mod 23 = <span id="res-B" class="text-white font-bold text-xl">19</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 bg-emerald-900/30 border border-emerald-500/30 rounded-xl p-6 text-center">
+                            <h4 class="text-emerald-400 text-sm font-bold uppercase tracking-widest mb-3">The Shared Secret (s)</h4>
+                            <div class="flex justify-center items-center space-x-8 font-mono">
+                                <div>
+                                    <div class="text-xs text-slate-400 mb-1">Alice's Math</div>
+                                    <div><span id="calc-s1-B" class="text-sky-400">19</span><sup id="calc-s1-a" class="text-rose-400">6</sup> mod 23</div>
+                                </div>
+                                <div class="text-3xl text-slate-500">=</div>
+                                <div>
+                                    <div class="text-xs text-slate-400 mb-1">Bob's Math</div>
+                                    <div><span id="calc-s2-A" class="text-rose-400">8</span><sup id="calc-s2-b" class="text-sky-400">15</sup> mod 23</div>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-5xl font-extrabold text-emerald-400 drop-shadow-lg" id="final-secret">2</div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col h-full">
+                        <div class="mb-6">
+                            <h3 class="text-xl font-bold text-indigo-400 mb-2">2. Why is this secure?</h3>
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                The security relies on the <strong>Discrete Logarithm Problem</strong>. It is easy to calculate <span class="font-mono text-indigo-300">g<sup>x</sup> mod p</span>. But if an eavesdropper only sees the result (the Public Key) and knows <span class="font-mono">g</span> and <span class="font-mono">p</span>, figuring out the original secret <span class="font-mono">x</span> is extremely difficult with large numbers. The chart below plots <span class="font-mono">5<sup>x</sup> mod 23</span> for all possible values of <span class="font-mono">x</span>. Notice how unpredictable and scattered the results are. It does not form a predictable line.
+                            </p>
+                        </div>
+                        
+                        <div class="bg-slate-800 p-4 rounded-3xl border border-slate-700 flex-grow flex flex-col justify-center shadow-2xl">
+                            <div class="chart-container">
+                                <canvas id="discreteLogChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <section id="realworld" class="max-w-6xl mx-auto px-6 py-20">
+            <div class="mb-12 text-center max-w-3xl mx-auto">
+                <h2 class="text-3xl font-bold mb-4">Real-World Application & Vulnerabilities</h2>
+                <p class="text-slate-600 text-lg">
+                    Before Diffie-Hellman, secure communication required a physical meeting to exchange a "codebook". Today, DH enables secure connections with zero prior contact. This section outlines where it is used and its primary critical weakness.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition">
+                    <div class="text-3xl mb-4">&#128274;</div>
+                    <h3 class="text-lg font-bold mb-2 text-slate-800">HTTPS</h3>
+                    <p class="text-slate-600 text-sm">When you see the padlock in your browser, your computer likely used a version of Diffie-Hellman to secure the session with the website.</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition">
+                    <div class="text-3xl mb-4">&#128187;</div>
+                    <h3 class="text-lg font-bold mb-2 text-slate-800">SSH</h3>
+                    <p class="text-slate-600 text-sm">Used by system administrators for securely logging into remote servers over the public internet without interceptable passwords.</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition">
+                    <div class="text-3xl mb-4">&#128246;</div>
+                    <h3 class="text-lg font-bold mb-2 text-slate-800">VPNs</h3>
+                    <p class="text-slate-600 text-sm">Virtual Private Networks use DH to establish the initial secure encrypted tunnels for your private browsing traffic.</p>
+                </div>
+            </div>
+
+            <div class="bg-rose-50 border-l-4 border-rose-500 p-8 rounded-r-2xl">
+                <div class="flex items-start">
+                    <div class="text-rose-500 text-2xl mr-4 mt-1">&#9888;&#65039;</div>
+                    <div>
+                        <h3 class="text-xl font-bold text-rose-900 mb-2">The One Weakness: Authentication</h3>
+                        <p class="text-rose-800 mb-4 leading-relaxed">
+                            While Diffie-Hellman is brilliant, it has one major flaw: <strong>it doesn't prove who is on the other end.</strong>
+                        </p>
+                        <p class="text-rose-800 leading-relaxed text-sm">
+                            If an attacker (Mallory) sits in the middle of the connection, he can pretend to be Bob to Alice, and pretend to be Alice to Bob. He establishes two separate keys and decodes all the messages passing through. This is known as a <strong>Man-in-the-Middle (MitM) Attack</strong>. Because of this, modern implementations always pair DH with <strong>Digital Signatures</strong> and <strong>Certificates</strong> to verify identity before exchanging keys.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-900 text-slate-400 py-8 text-center text-sm">
+        <div class="max-w-6xl mx-auto px-6">
+            <p>Diffie-Hellman Interactive Explainer &middot; Designed for educational purposes based on source report content.</p>
         </div>
-    </div>
+    </footer>
 
     <script>
-        const P = 23;
-        const G = 5;
+        const simBtn = document.getElementById('btn-paint-sim');
+        const alicePaint = document.getElementById('alice-paint');
+        const bobPaint = document.getElementById('bob-paint');
+        const publicPaint = document.getElementById('public-paint');
+        const aliceStatus = document.getElementById('alice-status');
+        const bobStatus = document.getElementById('bob-status');
+        const publicStatus = document.getElementById('public-status');
+        const simStepText = document.getElementById('sim-step-text');
 
-        // Elements
-        const aliceInput = document.getElementById('alice-priv-input');
-        const bobInput = document.getElementById('bob-priv-input');
-        const alicePrivVal = document.getElementById('alice-priv-val');
-        const bobPrivVal = document.getElementById('bob-priv-val');
-        
-        const aliceAExp = document.getElementById('alice-a-exp');
-        const alicePubResult = document.getElementById('alice-pub-result');
-        const bobBExp = document.getElementById('bob-b-exp');
-        const bobPubResult = document.getElementById('bob-pub-result');
+        let simStep = 0;
 
-        const eveA = document.getElementById('eve-a');
-        const eveB = document.getElementById('eve-b');
-
-        const aliceReceiveBox = document.getElementById('alice-receive-box');
-        const aliceReceivedVal = document.getElementById('alice-received-val');
-        const aliceFinalBox = document.getElementById('alice-final-box');
-        const aliceCalcBase = document.getElementById('alice-calc-base');
-        const aliceCalcExp = document.getElementById('alice-calc-exp');
-        const sharedSecretAlice = document.getElementById('shared-secret-alice');
-
-        const bobReceiveBox = document.getElementById('bob-receive-box');
-        const bobReceivedVal = document.getElementById('bob-received-val');
-        const bobFinalBox = document.getElementById('bob-final-box');
-        const bobCalcBase = document.getElementById('bob-calc-base');
-        const bobCalcExp = document.getElementById('bob-calc-exp');
-        const sharedSecretBob = document.getElementById('shared-secret-bob');
-
-        const exchangeBtn = document.getElementById('exchange-btn');
-
-        // Modular Exponentiation (base^exp % mod)
-        function power(base, exp, mod) {
-            let res = 1n;
-            base = BigInt(base) % BigInt(mod);
-            exp = BigInt(exp);
-            let m = BigInt(mod);
+        function resetSim() {
+            alicePaint.style.backgroundColor = '#f1f5f9';
+            alicePaint.innerText = 'Empty';
+            alicePaint.style.color = '#94a3b8';
+            bobPaint.style.backgroundColor = '#f1f5f9';
+            bobPaint.innerText = 'Empty';
+            bobPaint.style.color = '#94a3b8';
+            publicPaint.style.backgroundColor = '#f1f5f9';
+            publicPaint.innerText = 'Empty';
+            publicPaint.style.color = '#94a3b8';
             
-            while (exp > 0n) {
-                if (exp % 2n === 1n) res = (res * base) % m;
-                base = (base * base) % m;
-                exp = exp / 2n;
+            aliceStatus.innerText = 'Waiting to start...';
+            bobStatus.innerText = 'Waiting to start...';
+            publicStatus.innerText = 'Eavesdropper can see this';
+            
+            simBtn.innerText = 'Start Paint Simulation';
+            simStepText.innerText = 'Click to see how the secret is formed.';
+            simStep = 0;
+            
+            alicePaint.classList.remove('step-active');
+            bobPaint.classList.remove('step-active');
+            publicPaint.classList.remove('step-active');
+        }
+
+        simBtn.addEventListener('click', () => {
+            if (simStep === 0) {
+                publicPaint.style.backgroundColor = '#eab308';
+                publicPaint.style.color = '#713f12';
+                publicPaint.innerText = 'Yellow';
+                publicStatus.innerText = '1. Public Color Agreed';
+                publicPaint.classList.add('step-active');
+                
+                simBtn.innerText = 'Next: Choose Secrets';
+                simStepText.innerText = 'Everyone knows the starting color is Yellow.';
+                simStep++;
+            } else if (simStep === 1) {
+                publicPaint.classList.remove('step-active');
+                
+                alicePaint.style.backgroundColor = '#ef4444';
+                alicePaint.style.color = '#7f1d1d';
+                alicePaint.innerText = 'Red (Secret)';
+                aliceStatus.innerText = '2. Alice selects private color';
+                alicePaint.classList.add('step-active');
+
+                bobPaint.style.backgroundColor = '#3b82f6';
+                bobPaint.style.color = '#1e3a8a';
+                bobPaint.innerText = 'Blue (Secret)';
+                bobStatus.innerText = '2. Bob selects private color';
+                bobPaint.classList.add('step-active');
+
+                simBtn.innerText = 'Next: The Mix';
+                simStepText.innerText = 'These colors are never sent across the room.';
+                simStep++;
+            } else if (simStep === 2) {
+                alicePaint.style.backgroundColor = '#f97316';
+                alicePaint.style.color = '#7c2d12';
+                alicePaint.innerText = 'Orange';
+                aliceStatus.innerText = '3. Alice mixes Red + Yellow';
+
+                bobPaint.style.backgroundColor = '#22c55e';
+                bobPaint.style.color = '#14532d';
+                bobPaint.innerText = 'Green';
+                bobStatus.innerText = '3. Bob mixes Blue + Yellow';
+
+                simBtn.innerText = 'Next: The Exchange';
+                simStepText.innerText = 'They mix their secret with the public color.';
+                simStep++;
+            } else if (simStep === 3) {
+                alicePaint.classList.remove('step-active');
+                bobPaint.classList.remove('step-active');
+                publicPaint.classList.add('step-active');
+                
+                alicePaint.style.backgroundColor = '#22c55e';
+                alicePaint.style.color = '#14532d';
+                alicePaint.innerText = 'Green';
+                aliceStatus.innerText = '4. Alice receives Bob\'s mix';
+
+                bobPaint.style.backgroundColor = '#f97316';
+                bobPaint.style.color = '#7c2d12';
+                bobPaint.innerText = 'Orange';
+                bobStatus.innerText = '4. Bob receives Alice\'s mix';
+
+                publicPaint.style.background = 'linear-gradient(90deg, #f97316 50%, #22c55e 50%)';
+                publicPaint.style.color = 'transparent';
+                publicStatus.innerText = 'Eavesdropper sees Orange & Green';
+
+                simBtn.innerText = 'Next: The Final Secret';
+                simStepText.innerText = 'They swap mixtures. The eavesdropper cannot easily "unmix" them.';
+                simStep++;
+            } else if (simStep === 4) {
+                publicPaint.classList.remove('step-active');
+                publicPaint.style.background = '#eab308';
+                publicPaint.style.color = '#713f12';
+                publicPaint.innerText = 'Yellow';
+                publicStatus.innerText = 'Original Public Color';
+
+                alicePaint.style.backgroundColor = '#78350f';
+                alicePaint.style.color = '#fef3c7';
+                alicePaint.innerText = 'Brown';
+                aliceStatus.innerText = '5. Adds Secret Red to Green';
+                alicePaint.classList.add('step-active');
+
+                bobPaint.style.backgroundColor = '#78350f';
+                bobPaint.style.color = '#fef3c7';
+                bobPaint.innerText = 'Brown';
+                bobStatus.innerText = '5. Adds Secret Blue to Orange';
+                bobPaint.classList.add('step-active');
+
+                simBtn.innerText = 'Reset Simulation';
+                simStepText.innerText = 'Both arrive at the exact same secret color! (Yellow + Red + Blue)';
+                simStep++;
+            } else {
+                resetSim();
             }
-            return Number(res);
+        });
+
+        const p = 23n;
+        const g = 5n;
+        
+        const inA = document.getElementById('input-a');
+        const inB = document.getElementById('input-b');
+        const valA = document.getElementById('val-a');
+        const valB = document.getElementById('val-b');
+        const resA = document.getElementById('res-A');
+        const resB = document.getElementById('res-B');
+        const supA = document.getElementById('sup-a');
+        const supB = document.getElementById('sup-b');
+        const calcS1B = document.getElementById('calc-s1-B');
+        const calcS1a = document.getElementById('calc-s1-a');
+        const calcS2A = document.getElementById('calc-s2-A');
+        const calcS2b = document.getElementById('calc-s2-b');
+        const finalSecret = document.getElementById('final-secret');
+
+        function modPow(base, exponent, modulus) {
+            let result = 1n;
+            base = base % modulus;
+            while (exponent > 0n) {
+                if (exponent % 2n === 1n) {
+                    result = (result * base) % modulus;
+                }
+                base = (base * base) % modulus;
+                exponent = exponent / 2n;
+            }
+            return result;
         }
 
-        function updateCalculations() {
-            const a = parseInt(aliceInput.value);
-            const b = parseInt(bobInput.value);
+        function updateMath() {
+            const a = BigInt(inA.value);
+            const b = BigInt(inB.value);
 
-            alicePrivVal.innerText = a;
-            bobPrivVal.innerText = b;
+            valA.innerText = a.toString();
+            valB.innerText = b.toString();
+            supA.innerText = a.toString();
+            supB.innerText = b.toString();
 
-            const A = power(G, a, P);
-            const B = power(G, b, P);
+            const pubA = modPow(g, a, p);
+            const pubB = modPow(g, b, p);
 
-            aliceAExp.innerText = a;
-            alicePubResult.innerText = A;
-            bobBExp.innerText = b;
-            bobPubResult.innerText = B;
+            resA.innerText = pubA.toString();
+            resB.innerText = pubB.toString();
 
-            eveA.innerText = A;
-            eveB.innerText = B;
+            calcS1B.innerText = pubB.toString();
+            calcS1a.innerText = a.toString();
+            
+            calcS2A.innerText = pubA.toString();
+            calcS2b.innerText = b.toString();
 
-            // Reset exchange view if values change
-            hideExchange();
+            const sec1 = modPow(pubB, a, p);
+            const sec2 = modPow(pubA, b, p);
+
+            if(sec1 === sec2) {
+                finalSecret.innerText = sec1.toString();
+                finalSecret.classList.remove('scale-110');
+                void finalSecret.offsetWidth;
+                finalSecret.classList.add('scale-110', 'transition', 'duration-300');
+            }
         }
 
-        function hideExchange() {
-            aliceReceiveBox.classList.add('hidden');
-            aliceFinalBox.classList.add('hidden');
-            bobReceiveBox.classList.add('hidden');
-            bobFinalBox.classList.add('hidden');
-            exchangeBtn.innerText = "Execute Key Exchange";
-            exchangeBtn.classList.remove('bg-green-600');
-            exchangeBtn.classList.add('bg-indigo-600');
+        inA.addEventListener('input', updateMath);
+        inB.addEventListener('input', updateMath);
+
+        const chartCanvas = document.getElementById('discreteLogChart');
+        const dataPoints = [];
+        for (let x = 1; x < 23; x++) {
+            const y = Number(modPow(5n, BigInt(x), 23n));
+            dataPoints.push({x: x, y: y});
         }
 
-        function runExchange() {
-            const a = parseInt(aliceInput.value);
-            const b = parseInt(bobInput.value);
-            const A = power(G, a, P);
-            const B = power(G, b, P);
+        new Chart(chartCanvas, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Result of 5^x mod 23',
+                    data: dataPoints,
+                    backgroundColor: '#818cf8',
+                    borderColor: '#4f46e5',
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#cbd5e1' }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return `Secret (x)=${ctx.raw.x}, Public Key=${ctx.raw.y}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Secret Integer (x)', color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        ticks: { color: '#cbd5e1', stepSize: 2 }
+                    },
+                    y: {
+                        title: { display: true, text: 'Public Key Result', color: '#94a3b8' },
+                        grid: { color: '#334155' },
+                        ticks: { color: '#cbd5e1' },
+                        suggestedMin: 0,
+                        suggestedMax: 23
+                    }
+                }
+            }
+        });
 
-            // Step 1: Reveal received values
-            aliceReceiveBox.classList.remove('hidden');
-            aliceReceivedVal.innerText = B;
-            bobReceiveBox.classList.remove('hidden');
-            bobReceivedVal.innerText = A;
-
-            // Step 2: Calculate Shared Secrets
-            const sAlice = power(B, a, P);
-            const sBob = power(A, b, P);
-
-            aliceCalcBase.innerText = B;
-            aliceCalcExp.innerText = a;
-            sharedSecretAlice.innerText = sAlice;
-
-            bobCalcBase.innerText = A;
-            bobCalcExp.innerText = b;
-            sharedSecretBob.innerText = sBob;
-
-            aliceFinalBox.classList.remove('hidden');
-            bobFinalBox.classList.remove('hidden');
-
-            exchangeBtn.innerText = "Key Agreed!";
-            exchangeBtn.classList.remove('bg-indigo-600');
-            exchangeBtn.classList.add('bg-green-600');
-        }
-
-        aliceInput.addEventListener('input', updateCalculations);
-        bobInput.addEventListener('input', updateCalculations);
-        exchangeBtn.addEventListener('click', runExchange);
-
-        // Init
-        updateCalculations();
     </script>
 </body>
 </html>
