@@ -1,5 +1,7 @@
 # Diffie-Hellman Key Exchange
 
+<img width="1535" height="672" alt="image" src="https://github.com/user-attachments/assets/92c5d75e-267d-426f-b8c1-0c42d8508c54" />
+
 ## Sharing Secrets in Plain Sight: The Magic of Secure Communication
 
 In a world where digital communication happens constantly, one of the most remarkable problems in computer science is this:
