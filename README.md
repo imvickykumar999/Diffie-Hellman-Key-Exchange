@@ -1,6 +1,6 @@
 # Diffie-Hellman Key Exchange
 
-<img width="1535" height="672" alt="image" src="https://github.com/user-attachments/assets/92c5d75e-267d-426f-b8c1-0c42d8508c54" />
+[![comment](https://github.com/user-attachments/assets/92c5d75e-267d-426f-b8c1-0c42d8508c54)](https://github.com/tukaani-project/xz/commit/6e636819e8f070330d835fce46289a3ff72a7b89#commitcomment-179354309)
 
 ## Sharing Secrets in Plain Sight: The Magic of Secure Communication
 
